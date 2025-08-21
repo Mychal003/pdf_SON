@@ -251,20 +251,19 @@ def get_virustotal_api():
     import os
     api_key = os.getenv('VIRUSTOTAL_API_KEY')
     
-    # Alternatywnie, możesz odczytać z pliku config
+    # Alternatywnie, możesz odczytać z pliku w głównym folderze
     if not api_key:
         try:
-            config_path = os.path.join(os.path.dirname(__file__), 'config', 'virustotal_key.txt')
+            config_path = os.path.join(os.path.dirname(__file__), 'virustotal_key.txt')
             with open(config_path, 'r') as f:
                 content = f.read().strip()
-                # Ignoruj linie zaczynające się od # (komentarze)
                 for line in content.split('\n'):
                     line = line.strip()
                     if line and not line.startswith('#'):
                         api_key = line
                         break
         except FileNotFoundError:
-            logging.warning("VirusTotal API key not found. Create config/virustotal_key.txt or set VIRUSTOTAL_API_KEY environment variable.")
+            logging.warning("VirusTotal API key not found. Create virustotal_key.txt in main directory or set VIRUSTOTAL_API_KEY environment variable.")
         except Exception as e:
             logging.error(f"Error reading VirusTotal API key from file: {str(e)}")
     

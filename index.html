@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analizator Bezpieczeństwa PDF</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 20px auto; /* Zmniejszone z 50px na 20px */
+            padding: 15px; /* Zmniejszone z 20px na 15px */
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px; /* Zmniejszone z 30px na 20px */
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin: 0 0 20px 0; /* Dodany jawny margines, zmniejszony dolny margines */
+        }
+        .upload-box {
+            border: 2px dashed #ccc;
+            padding: 30px; /* Zmniejszone z 40px na 30px */
+            text-align: center;
+            margin: 15px 0; /* Zmniejszone z 20px na 15px */
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .upload-box:hover {
+            border-color: #007bff;
+            background-color: #f8f9fa;
+        }
+        /* Style dla drag & drop */
+        .upload-box.drag-over {
+            border-color: #28a745;
+            background-color: #d4edda;
+            transform: scale(1.02);
+        }
+        .btn {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .btn:hover {
+            background-color: #0056b3;
+        }
+        
+        /* Nowy układ dwukolumnowy */
+        .results-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .result-column {
+            flex: 1;
+            min-width: 300px;
+        }
+        
+        .preview-column {
+            flex: 1;
+            min-width: 300px;
+        }
+        
+        .result {
+            margin: 0;
+            padding: 15px;
+            border-radius: 5px;
+            display: none;
+        }
+        
+        .safe {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .danger {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .loading {
+            text-align: center;
+            display: none;
+            margin: 20px 0;
+        }
+        .contact-info {
+            background-color: #e9f7ef;
+            border: 1px solid #a7d2a7;
+            padding: 15px;
+            margin-top: 15px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .contact-warning {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+        }
+        .contact-danger {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .email-link {
+            color: #007bff;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        .email-link:hover {
+            text-decoration: underline;
+        }
+        
+        .links-section {
+            margin-top: 15px;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 10px;
+        }
+        
+        .links-list {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #fff;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+        }
+        
+        .link-item {
+            padding: 5px;
+            margin-bottom: 5px;
+            border-bottom: 1px solid #f1f1f1;
+            word-break: break-all;
+            color: #495057; /* Neutralny kolor zamiast czerwonego dla standardowych linków */
+            font-weight: normal; /* Nie wszystkie linki pogrubione */
+        }
+        
+        .link-item:last-child {
+            border-bottom: none;
+        }
+        
+        .suspicious-link {
+            background-color: #fff3cd; /* Żółte tło zamiast czerwonego */
+            border-left: 3px solid #ffc107;
+            padding-left: 8px;
+            color: #856404; /* Kolor tekstu dla ostrzeżeń */
+            font-weight: bold;
+        }
+        
+        .dangerous-link {
+            background-color: #f8d7da; /* Czerwone tło tylko dla naprawdę niebezpiecznych */
+            border-left: 3px solid #dc3545;
+            padding-left: 8px;
+            color: #721c24;
+            font-weight: bold;
+        }
+        
+        .links-warning {
+            background-color: #e2e3e5; /* Neutralny kolor tła */
+            color: #383d41; /* Neutralny kolor tekstu */
+            padding: 8px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-weight: normal;
+            border: 1px solid #d6d8db;
+        }
+        
+        .pdf-preview {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 10px;
+            height: 100%;
+            display: none;
+        }
+        
+        .pdf-preview-pages {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            margin-top: 10px;
+            overflow-y: auto;
+            max-height: 600px;
+        }
+        
+        .pdf-page {
+            max-width: 100%;
+            border: 1px solid #dee2e6;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .preview-warning {
+            background-color: #e2e3e5;
+            color: #383d41;
+            padding: 8px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-size: 0.9em;
+            border: 1px solid #d6d8db;
+        }
+        
+        .preview-button {
+            margin-top: 10px;
+            background-color: #6c757d;
+            color: white;
+            width: 100%;
+        }
+        
+        .preview-button:hover {
+            background-color: #5a6268;
+        }
+        
+        .virustotal-section {
+            margin-top: 15px;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 10px;
+        }
+        
+        .virustotal-button {
+            background-color: #17a2b8;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        
+        .virustotal-button:hover {
+            background-color: #138496;
+        }
+        
+        .virustotal-button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        
+        .virustotal-results {
+            margin-top: 15px;
+            display: none;
+        }
+        
+        .vt-result-item {
+            padding: 10px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            border-left: 4px solid #dee2e6;
+        }
+        
+        .vt-clean {
+            background-color: #d4edda;
+            border-left-color: #28a745;
+            color: #155724;
+        }
+        
+        .vt-suspicious {
+            background-color: #fff3cd;
+            border-left-color: #ffc107;
+            color: #856404;
+        }
+        
+        .vt-malicious {
+            background-color: #f8d7da;
+            border-left-color: #dc3545;
+            color: #721c24;
+        }
+        
+        .vt-error {
+            background-color: #e2e3e5;
+            border-left-color: #6c757d;
+            color: #383d41;
+        }
+        
+        .vt-stats {
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+        
+        .vt-detections {
+            margin-top: 8px;
+            font-size: 0.85em;
+        }
+        
+        .vt-detection-item {
+            background-color: rgba(220, 53, 69, 0.1);
+            padding: 3px 6px;
+            margin: 2px;
+            border-radius: 3px;
+            display: inline-block;
+        }
+        
+        /* Responsywność dla mniejszych ekranów */
+        @media (max-width: 768px) {
+            .results-container {
+                flex-direction: column;
+            }
+            
+            body {
+                max-width: 100%;
+                padding: 10px;
+                margin: 10px auto; /* Zmniejszone również dla mobile */
+            }
+            
+            .container {
+                padding: 15px; /* Zmniejszone padding dla mobile */
+            }
+            
+            .upload-box {
+                padding: 20px; /* Zmniejszone padding dla mobile */
+                margin: 10px 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Analizator Bezpieczeństwa PDF</h1>
+        
+        <div class="upload-box" id="uploadBox">
+            <p>Kliknij tutaj lub przeciągnij plik PDF</p>
+            <button class="btn" type="button" onclick="selectFile()">Wybierz plik</button>
+            <input type="file" id="fileInput" accept=".pdf" style="display: none;">
+        </div>
+        
+        <div id="loading" class="loading">
+            <p>Analizowanie pliku PDF...</p>
+        </div>
+        
+        <!-- Nowy kontener dla wyników i podglądu -->
+        <div class="results-container" id="resultsContainer" style="display: none;">
+            <div class="result-column">
+                <div id="result" class="result"></div>
+            </div>
+            <div class="preview-column">
+                <button class="btn preview-button" id="previewButton" type="button" onclick="showPDFPreview()" style="display: none;">
+                    Pokaż podgląd dokumentu (pierwsze 3 strony)
+                </button>
+                <div id="pdfPreview" class="pdf-preview">
+                    <div class="preview-warning">
+                        <strong>ℹ️ Uwaga:</strong> Podgląd pokazuje tylko pierwsze 3 strony dokumentu 
+                        jako statyczne obrazy. Interaktywne elementy nie są aktywne.
+                    </div>
+                    <div id="pdfPreviewPages" class="pdf-preview-pages"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const uploadBox = document.getElementById('uploadBox');
+        const fileInput = document.getElementById('fileInput');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const previewButton = document.getElementById('previewButton');
+
+        // Obsługa kliknięcia w upload box
+        uploadBox.addEventListener('click', function(e) {
+            // Sprawdź czy kliknięcie nie było w button
+            if (e.target.tagName !== 'BUTTON') {
+                fileInput.click();
+            }
+        });
+
+        // Obsługa kliknięcia w button
+        function selectFile() {
+            fileInput.value = ''; // Wyczyść poprzednią wartość
+            fileInput.click();
+        }
+
+        // Obsługa wyboru pliku przez input
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file && file.type === 'application/pdf') {
+                analyzePDF(file);
+            } else if (file) {
+                showError('Dozwolone są tylko pliki PDF');
+            }
+        });
+
+        // DRAG & DROP obsługa
+        uploadBox.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            uploadBox.classList.add('drag-over');
+        });
+
+        uploadBox.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            // Sprawdź czy opuszczamy rzeczywiście upload box
+            if (!uploadBox.contains(e.relatedTarget)) {
+                uploadBox.classList.remove('drag-over');
+            }
+        });
+
+        uploadBox.addEventListener('drop', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            uploadBox.classList.remove('drag-over');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                const file = files[0];
+                
+                // Sprawdź czy to PDF
+                if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+                    analyzePDF(file);
+                } else {
+                    showError('Dozwolone są tylko pliki PDF');
+                }
+            }
+        });
+
+        // Zapobiegaj defaultowej obsłudze drag & drop w całym dokumencie
+        document.addEventListener('dragover', function(e) {
+            e.preventDefault();
+        });
+        document.addEventListener('drop', function(e) {
+            e.preventDefault();
+        });
+
+        function analyzePDF(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            document.getElementById('loading').style.display = 'block';
+            resultsContainer.style.display = 'none';
+            
+            // Resetuj stan podglądu przy każdej nowej analizie
+            const previewDiv = document.getElementById('pdfPreview');
+            const pagesDiv = document.getElementById('pdfPreviewPages');
+            const previewButton = document.getElementById('previewButton');
+            
+            // Ukryj podgląd i przycisk
+            previewDiv.style.display = 'none';
+            previewButton.style.display = 'none';
+            
+            // Wyczyść poprzednią zawartość podglądu
+            pagesDiv.innerHTML = '';
+            
+            fetch('/api/analyze', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('loading').style.display = 'none';
+                resultsContainer.style.display = 'flex';
+                showResult(data);
+                
+                // Zapisz plik tymczasowo do późniejszego użycia w podglądzie
+                window.analyzedFile = file;
+                
+                // Zarządzaj widocznością podglądu na podstawie bezpieczeństwa pliku
+                if (!data.error) {
+                    if (data.preview_safe) {
+                        // Dla bezpiecznych plików pokazuj tylko przycisk podglądu
+                        previewButton.style.display = 'block';
+                        previewDiv.style.display = 'none';
+                    } else {
+                        // Dla niebezpiecznych plików pokaż komunikat i ukryj przycisk
+                        previewButton.style.display = 'none';
+                        previewDiv.style.display = 'block';
+                        
+                        pagesDiv.innerHTML = `
+                            <div style="text-align: center; padding: 20px; background-color: #f8d7da; color: #721c24; border-radius: 5px; border: 1px solid #f5c6cb;">
+                                <strong>⚠️ Podgląd niedostępny ze względów bezpieczeństwa</strong><br><br>
+                                Ten dokument zawiera potencjalnie niebezpieczne elementy, które uniemożliwiają bezpieczne generowanie podglądu:<br>
+                                <ul style="text-align: left; margin-top: 10px;">
+                                    ${data.preview_unsafe_reasons.map(reason => `<li>${reason}</li>`).join('')}
+                                </ul>
+                            </div>
+                        `;
+                    }
+                }
+            })
+            .catch(error => {
+                document.getElementById('loading').style.display = 'none';
+                showError('Błąd: ' + error.message);
+            });
+        }
+
+        function showResult(data) {
+            // Zapisz dane analizy do wykorzystania przez VirusTotal
+            window.currentAnalysisData = data;
+            
+            const resultDiv = document.getElementById('result');
+            
+            if (data.error) {
+                showError(data.error);
+                return;
+            }
+
+            let className = 'safe';
+            let safetyLevelText = '';
+            let contactInfo = '';
+            
+            // Jeśli są linki, nie zawsze klasyfikuj jako danger
+            if (data.links && data.links.length > 0 && data.suspicious_links_count > 0) {
+                // Tylko jeśli są podejrzane linki
+                className = data.suspicious_links_count > 2 ? 'danger' : 'warning';
+            } else {
+                if (data.safety_level === 'SAFE') {
+                    className = 'safe';
+                } else if (data.safety_level === 'LOW_RISK' || data.safety_level === 'MEDIUM_RISK') {
+                    className = 'warning';
+                } else if (data.safety_level === 'HIGH_RISK') {
+                    className = 'danger';
+                }
+            }
+            
+            if (data.safety_level === 'SAFE') {
+                safetyLevelText = 'NIE WYKRYTO ZAGROŻEŃ (zachowaj czujność)';
+                // Dodaj informację o linkach nawet dla bezpiecznych PDF-ów
+                contactInfo = `
+                    <div class="contact-info">
+                        <strong>💡 Pamiętaj o bezpieczeństwie</strong><br>
+                        Nawet jeśli nie wykryto zagrożeń, zawsze zachowaj czujność.<br>
+                        Sprawdzaj linki w PDF zanim je klikniesz!<br>
+                        W razie wątpliwości skonsultuj się z: 
+                        <a href="mailto:bezpieczenstwo@sonel.pl" class="email-link">bezpieczenstwo@sonel.pl</a>
+                    </div>
+                `;
+            } else if (data.safety_level === 'LOW_RISK') {
+                safetyLevelText = 'NISKIE RYZYKO';
+                contactInfo = `
+                    <div class="contact-info contact-warning">
+                        <strong>⚠️ Wykryto potencjalne zagrożenie</strong><br>
+                        Zachowaj ostrożność podczas korzystania z tego pliku.<br>
+                        W razie wątpliwości skonsultuj się z: 
+                        <a href="mailto:bezpieczenstwo@sonel.pl" class="email-link">bezpieczenstwo@sonel.pl</a>
+                    </div>
+                `;
+            } else if (data.safety_level === 'MEDIUM_RISK') {
+                safetyLevelText = 'ŚREDNIE RYZYKO';
+                contactInfo = `
+                    <div class="contact-info contact-warning">
+                        <strong>⚠️ Wykryto zagrożenie</strong><br>
+                        Zachowaj szczególną ostrożność podczas korzystania z tego pliku.<br>
+                        W razie wątpliwości skonsultuj się z: 
+                        <a href="mailto:bezpieczenstwo@sonel.pl" class="email-link">bezpieczenstwo@sonel.pl</a>
+                    </div>
+                `;
+            } else if (data.safety_level === 'HIGH_RISK') {
+                safetyLevelText = 'WYSOKIE RYZYKO';
+                contactInfo = `
+                    <div class="contact-info contact-danger">
+                        <strong>🚨 UWAGA! Wykryto wysokie zagrożenie</strong><br>
+                        Zachowaj szczególną czujność i rozważ konsultację z ekspertem: 
+                        <a href="mailto:bezpieczenstwo@sonel.pl" class="email-link">bezpieczenstwo@sonel.pl</a>
+                    </div>
+                `;
+            }
+
+            let warningsText = '';
+            if (data.warnings && data.warnings.length > 0) {
+                warningsText = '<br><strong>Ostrzeżenia:</strong><br>' + data.warnings.join('<br>');
+            }
+            
+            // Add links section
+            let linksSection = '';
+            if (data.links && data.links.length > 0) {
+                let linksList = '';
+                
+                // Łagodniejsze ostrzeżenie o linkach
+                linksSection = `
+                    <div class="links-section">
+                        <div class="links-warning">ℹ️ Dokument zawiera linki - zachowaj ostrożność przy ich otwieraniu.</div>
+                        <strong>Wykryte linki (${data.links.length}):</strong>
+                        ${data.suspicious_links_count > 0 ? 
+                            `<div class="link-reason">Znaleziono ${data.suspicious_links_count} podejrzanych linków.</div>` : ''}
+                        <div class="links-list">
+                `;
+                
+                for (const link of data.links) {
+                    // Określ klasę na podstawie potencjalnego ryzyka
+                    let linkClass = '';
+                    let reasonText = '';
+                    
+                    if (link.suspicious) {
+                        // Sprawdź, czy link jest szczególnie niebezpieczny
+                        const isDangerous = link.reason && (
+        
+                            link.reason.includes("adres IP zamiast domeny")
+                        );
+                        
+                        linkClass = isDangerous ? 'dangerous-link' : 'suspicious-link';
+                        reasonText = link.reason ? 
+                            `<div class="link-reason">Powód: ${link.reason}</div>` : 
+                            `<div class="link-reason">Potencjalnie niebezpieczny link.</div>`;
+                    }
+                    
+                    // Wyświetl wszystkie strony, na których pojawia się link
+                    let pagesText = '';
+                    if (link.pages && link.pages.length > 0) {
+                        if (link.pages.length === 1) {
+                            pagesText = `(Strona ${link.pages[0]})`;
+                        } else {
+                            pagesText = `(Strony: ${link.pages.join(', ')})`;
+                        }
+                    } else if (link.page) {
+                        // Kompatybilność ze starym formatem
+                        pagesText = `(Strona ${link.page})`;
+                    }
+                    
+                    linksList += `
+                        <div class="link-item ${linkClass}">
+                            ${link.url}
+                            <span class="link-page">${pagesText}</span>
+                            ${reasonText}
+                        </div>
+                    `;
+                }
+                
+                linksSection += `${linksList}</div></div>`;
+            } else {
+                linksSection = `
+                    <div class="links-section">
+                        <strong>Wykryte linki:</strong>
+                        <div class="links-list">
+                            <div class="no-links">Nie znaleziono linków w tym dokumencie.</div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Dodaj sekcję VirusTotal dla dokumentów z linkami
+            let virusTotalSection = '';
+            if (data.links && data.links.length > 0) {
+                virusTotalSection = `
+                    <div class="virustotal-section">
+                        <strong>🔍 Sprawdzenie bezpieczeństwa linków</strong>
+                        <p style="margin: 5px 0; font-size: 0.9em;">
+                            Możesz sprawdzić wykryte linki w bazie zagrożeń VirusTotal:
+                        </p>
+                        <button class="virustotal-button" id="virusTotalBtn" onclick="checkLinksWithVirusTotal()">
+                            Sprawdź linki w VirusTotal
+                        </button>
+                        <div id="virusTotalResults" class="virustotal-results"></div>
+                    </div>
+                `;
+            }
+
+            resultDiv.className = 'result ' + className;
+            resultDiv.innerHTML = `
+                <h3>Wynik analizy bezpieczeństwa</h3>
+                <p><strong>Plik:</strong> ${data.filename}</p>
+                <p><strong>Analiza wykazała:</strong> ${safetyLevelText}</p>
+                ${warningsText}
+                ${linksSection}
+                ${virusTotalSection}
+                ${contactInfo}
+            `;
+            resultDiv.style.display = 'block';
+        }
+        
+        function checkLinksWithVirusTotal() {
+            const btn = document.getElementById('virusTotalBtn');
+            const resultsDiv = document.getElementById('virusTotalResults');
+            
+            // Pobierz aktualne dane analizy
+            if (!window.currentAnalysisData || !window.currentAnalysisData.links) {
+                resultsDiv.innerHTML = '<p class="vt-error">Brak danych o linkach do sprawdzenia.</p>';
+                resultsDiv.style.display = 'block';
+                return;
+            }
+            
+            const links = window.currentAnalysisData.links;
+            
+            // Wyłącz przycisk i pokaż loading
+            btn.disabled = true;
+            btn.textContent = 'Sprawdzanie...';
+            resultsDiv.innerHTML = '<p>Sprawdzanie linków w VirusTotal...</p>';
+            resultsDiv.style.display = 'block';
+            
+            // Wysłij zapytanie do API
+            fetch('/api/virustotal-check', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    links: links
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    displayVirusTotalResults(data.results);
+                } else {
+                    resultsDiv.innerHTML = `
+                        <div class="vt-result-item vt-error">
+                            <strong>Błąd:</strong> ${data.error || 'Nieznany błąd'}<br>
+                            ${data.message || ''}
+                        </div>
+                    `;
+                }
+            })
+            .catch(error => {
+                console.error('Error checking with VirusTotal:', error);
+                resultsDiv.innerHTML = `
+                    <div class="vt-result-item vt-error">
+                        <strong>Błąd połączenia:</strong> ${error.message}
+                    </div>
+                `;
+            })
+            .finally(() => {
+                // Przywróć przycisk
+                btn.disabled = false;
+                btn.textContent = 'Sprawdź ponownie';
+            });
+        }
+        
+        function displayVirusTotalResults(results) {
+            const resultsDiv = document.getElementById('virusTotalResults');
+            let html = '<h4>Wyniki sprawdzenia VirusTotal:</h4>';
+            
+            for (const result of results) {
+                let cssClass = 'vt-error';
+                let statusIcon = '❓';
+                let statusText = 'Nieznany';
+                
+                if (result.status === 'clean') {
+                    cssClass = 'vt-clean';
+                    statusIcon = '✅';
+                    statusText = 'Bezpieczny';
+                } else if (result.status === 'suspicious') {
+                    cssClass = 'vt-suspicious';
+                    statusIcon = '⚠️';
+                    statusText = 'Podejrzany';
+                } else if (result.status === 'malicious') {
+                    cssClass = 'vt-malicious';
+                    statusIcon = '🚨';
+                    statusText = 'Niebezpieczny';
+                } else if (result.status === 'skipped') {
+                    cssClass = 'vt-error';
+                    statusIcon = '⏭️';
+                    statusText = 'Pominięty';
+                } else if (result.status === 'timeout') {
+                    cssClass = 'vt-error';
+                    statusIcon = '⏱️';
+                    statusText = 'Timeout';
+                } else if (result.status === 'error') {
+                    cssClass = 'vt-error';
+                    statusIcon = '❌';
+                    statusText = 'Błąd';
+                }
+                
+                html += `<div class="vt-result-item ${cssClass}">`;
+                html += `<strong>${statusIcon} ${statusText}:</strong> `;
+                html += `<span style="word-break: break-all;">${result.url}</span>`;
+                
+                if (result.stats) {
+                    const stats = result.stats;
+                    html += `<div class="vt-stats">`;
+                    html += `Skanery: ${stats.malicious}/${stats.total} wykryło zagrożenie `;
+                    html += `(${stats.suspicious} podejrzanych, ${stats.clean} bezpiecznych)`;
+                    html += `</div>`;
+                }
+                
+                if (result.detections && result.detections.length > 0) {
+                    html += `<div class="vt-detections">`;
+                    html += `<strong>Wykryte zagrożenia:</strong><br>`;
+                    for (const detection of result.detections.slice(0, 5)) { // Pokazuj max 5 wykryć
+                        html += `<span class="vt-detection-item">${detection.engine}: ${detection.result}</span>`;
+                    }
+                    if (result.detections.length > 5) {
+                        html += `<span class="vt-detection-item">...i ${result.detections.length - 5} innych</span>`;
+                    }
+                    html += `</div>`;
+                }
+                
+                if (result.error) {
+                    html += `<div style="margin-top: 5px; font-size: 0.9em;">Błąd: ${result.error}</div>`;
+                }
+                
+                if (result.message) {
+                    html += `<div style="margin-top: 5px; font-size: 0.9em;">${result.message}</div>`;
+                }
+                
+                html += `</div>`;
+            }
+            
+            resultsDiv.innerHTML = html;
+        }
+        
+        function showPDFPreview() {
+            if (!window.analyzedFile) {
+                alert('Brak pliku do wyświetlenia. Proszę ponownie przesłać plik.');
+                return;
+            }
+            
+            const previewDiv = document.getElementById('pdfPreview');
+            const pagesDiv = document.getElementById('pdfPreviewPages');
+            
+            // Pokaż loader w sekcji podglądu
+            previewDiv.style.display = 'block';
+            pagesDiv.innerHTML = '<p>Generowanie podglądu...</p>';
+            
+            // Ukryj przycisk po kliknięciu
+            previewButton.style.display = 'none';
+            
+            const formData = new FormData();
+            formData.append('file', window.analyzedFile);
+            
+            // Wyświetl szczegóły debugowania
+            console.log("Wysyłanie pliku do podglądu:", window.analyzedFile.name, window.analyzedFile.size, "bytes");
+            
+            fetch('/api/pdf-preview', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                console.log("Status odpowiedzi:", response.status);
+                if (!response.ok) {
+                    // Obsługa błędu 403 - Forbidden (niedostępny ze względów bezpieczeństwa)
+                    if (response.status === 403) {
+                        return response.json().then(data => {
+                            throw new Error(`Podgląd niedostępny: ${data.error || 'Dokument zawiera niebezpieczne elementy'}`);
+                        });
+                    }
+                    throw new Error(`Błąd serwera: ${response.status}`);
+                }
+                return response.json(); // Wywołanie metody json() - był brak nawiasów
+            })
+            .then(data => {
+                console.log("Otrzymano dane podglądu:", data);
+                if (data.success && data.images && data.images.length > 0) {
+                    pagesDiv.innerHTML = '';
+                    
+                    data.images.forEach(image => {
+                        const imgElement = document.createElement('img');
+                        imgElement.src = image.data;
+                        imgElement.alt = `Strona ${image.page}`;
+                        imgElement.className = 'pdf-page';
+                        imgElement.style.maxWidth = '100%';
+                        
+                        const pageContainer = document.createElement('div');
+                        pageContainer.appendChild(imgElement);
+                        pageContainer.innerHTML += `<p>Strona ${image.page} z ${data.total_pages}</p>`;
+                        
+                        pagesDiv.appendChild(pageContainer);
+                    });
+                    
+                    if (data.total_pages > 3) {
+                        const noteElement = document.createElement('p');
+                        noteElement.innerHTML = `<em>Dokument zawiera ${data.total_pages} stron. Wyświetlono tylko pierwsze 3.</em>`;
+                        pagesDiv.appendChild(noteElement);
+                    }
+                } else {
+                    pagesDiv.innerHTML = '<p>Nie udało się wygenerować podglądu. ' + 
+                        (data.error || 'Nieznany błąd.') + '</p>';
+                }
+            })
+            .catch(error => {
+                console.error("Błąd podczas generowania podglądu:", error);
+                pagesDiv.innerHTML = `
+                    <div style="text-align: center; padding: 20px; background-color: #f8d7da; color: #721c24; border-radius: 5px; border: 1px solid #f5c6cb;">
+                        <strong>⚠️ Nie można wygenerować podglądu</strong><br><br>
+                        ${error.message}
+                    </div>
+                `;
+            });
+        }
+
+        function showError(message) {
+            resultsContainer.style.display = 'flex';
+            const resultDiv = document.getElementById('result');
+            resultDiv.className = 'result danger';
+            resultDiv.innerHTML = `
+                <h3>Błąd</h3>
+                <p>${message}</p>
+                <div class="contact-info contact-danger">
+                    <strong>Problemy z analizą?</strong><br>
+                    Skontaktuj się z: 
+                    <a href="mailto:bezpieczenstwo@sonel.pl" class="email-link">bezpieczenstwo@sonel.pl</a>
+                </div>
+            `;
+            resultDiv.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
